@@ -18,7 +18,7 @@ private:
 			info[i] = message[i];
 		for (uint64_t i = tmp; i < messlen; i++)
 			info[i] = 0;
-		if (size % 32 != 0)     //在消息最后一位置一
+		if (size % 32 != 0)     //鍦ㄦ秷鎭渶鍚庝竴浣嶇疆涓�
 			info[tmp - 1] += pow(31 - size % 32);
 		else
 			info[tmp] += U32 / 2;
@@ -75,19 +75,30 @@ private:
 		for (int i = 0; i < 8; i++)
 			output[i] = IV[i] ^ output[i];
 	}
-public:
-	sm3_context(uint64_t sizeOfMessage) {
-		messlen = ((sizeOfMessage - 447) / 512 + 2) * 16;
-		info = new uint32_t[messlen];
-		size = sizeOfMessage;
+	void reset() {
 		dig[0] = 0x7380166F;
 		dig[1] = 0x4914B2B9;
 		dig[2] = 0x172442D7;
 		dig[3] = 0xDA8A0600;
+
 		dig[4] = 0xA96F30BC;
 		dig[5] = 0x163138AA;
 		dig[6] = 0xE38DEE4D;
 		dig[7] = 0xB0FB0E4E;
+	}
+public:
+	sm3_context(const uint64_t sizeOfMessage) {
+		messlen = ((sizeOfMessage - 447) / 512 + 2) * 16;
+		info = new uint32_t[messlen];
+		size = sizeOfMessage;
+		reset();
+	}
+	void sm3_extendcontext(const uint64_t sizeOfMessage,const uint32_t* hash) {
+		messlen = ((sizeOfMessage - 447) / 512 + 2) * 16;
+		info = new uint32_t[messlen];
+		size = sizeOfMessage;
+		for (int i = 0; i < 8; i++)
+			dig[i] = hash[i];
 	}
 	void sm3_hash(const uint32_t* message,uint32_t* output) {
 		sm3_init(message);
@@ -96,6 +107,7 @@ public:
 			for (int j = 0; j < 8; j++)
 				dig[i] = output[i];
 		}
+		reset();
 	}
 	~sm3_context() {
 		delete[] info;
@@ -122,35 +134,47 @@ void naiveBirthdayAttack() {
 	return;
 }
 
-#include<stdlib.h>
+#include<cstdlib>
 #include<ctime>
-const int SIZE = 33554432;
-static uint64_t mem[SIZE]{};     //0x7fffffff bits array, set to 0
-bool inSet(uint64_t* mem, uint64_t* n) {
-	for (uint32_t i = 0; i < SIZE; i++)
-		if (mem[i] == *n)
-			return 1;
-	return 0;
-}
+const uint32_t SIZE = pow(20);
 bool success;
+uint64_t mem[16][1048576];
+uint32_t i[16];
 void* rhoCollisionAttack(void* n) {
-	cout << "No." << (uint32_t)n << " Thread Start.\n";
-	uint64_t x, y;
-	sm3_context ctx_x(64);
-	sm3_context ctx_y(64);
-	uint32_t outx[8], outy[8];
+	uint32_t num = (uint32_t)n;
+	clock_t start = clock();
+	while (clock() - start < 100 * num);
+	cout << "No." << dec << num << " Thread Start.\n";
+	uint64_t x = 0;
+	sm3_context ctx(64);
+	uint32_t output[8];
+	uint32_t m = num * 2097152;
 	srand(clock());
-	uint32_t m = (uint32_t)n * 2097152;
-	for (uint64_t i = 0; i < pow(21); i++) {
-		x = rand();
-		mem[i + m] = x;
-		while (y != x && (!inSet(mem, &x))) {
+	while(1) {
+		x = (uint64_t)rand();
+		mem[num][0] = x;
+		for (i[num] = 1; i[num] < SIZE; i[num]++) {
+			ctx.sm3_hash((uint32_t*)&x, output);
+			mem[num][i[num]] = x = output[0] * pow(32) + output[1];     //take 64 bits of digest
+			for (int k = 0; k < 16; k++)
+				for (uint32_t j = 1; j < i[k]; j++)
+					if (mem[k][j] == mem[num][i[num]] && mem[k][j - 1] != mem[num][i[num] - 1]) {
+						while (clock() - start < 1000 * num);      //TimeDly to make output comprehensible
+						cout << "Find a collision!" << endl
+							<< "Message 1: 0x" << hex << mem[k][j - 1] << endl
+							<< "Message 2: 0x" << hex << mem[num][i[num] - 1] << endl;
 
-			}
+						ctx.sm3_hash((uint32_t*)&mem[k][j - 1], output);
+						cout << "Hash 1: 0x" << hex << output[0] * pow(32) + output[1] << endl;
+
+						ctx.sm3_hash((uint32_t*)&mem[num][i[num] - 1], output);
+						cout << "Hash 2: 0x" << hex << output[0] * pow(32) + output[1] << endl;
+
+						success = 1;
+						return NULL;
+					}
 		}
 	}
-	cout << "No collision found!" << endl;
-	return nullptr;
 }
 #define HAVE_STRUCT_TIMESPEC
 #include<pthread.h>
@@ -163,23 +187,59 @@ void multiThreadRho() {
 	while (!success)
 		for (int i = 0; i < 16; i++)
 			pthread_exit(&thr[i]);
-	delete[] mem;
+}
+
+void lengthExtendAttack(const uint32_t* hash, const uint32_t* message, const int size, uint32_t* output) {
+	sm3_context ctx(size);
+	ctx.sm3_extendcontext(size, hash);
+	ctx.sm3_hash(message, output);
+}
+/* A sample of merkle tree: Assume that every message is 504 bits(63 Bytes for message, 1 Bytes for 0x01 or 0x00) long, num messages in total */
+const int numberOfMessage = 23;
+const uint32_t message[numberOfMessage][16]{};
+void MerkleTree(uint32_t start, uint32_t num, uint32_t* output) {     //https://rfc2cn.com/rfc6962.html
+	
+	if (num == 1) {
+		sm3_context ctx(512);
+		ctx.sm3_hash(message[start], output);
+		return;
+	}
+	sm3_context ctx(520);
+	char temp[65];
+	temp[0] = (char)0x01;
+	MerkleTree(start, num / 2, (uint32_t*)temp + 1);
+	MerkleTree(start + num / 2, num - num / 2, (uint32_t*)temp + 33);
+	ctx.sm3_hash((uint32_t*)temp, output);
+	return;
 }
 int main() {
-	/* A Simple Test of SM3
+	/* A Simple Test of SM3 */
 	char message[] = "dfsegsfcfdsfvxcsdfd43sefsrt435fdsgds";
 	uint32_t output[8];
+	/*
 	sm3_context ctx(296);
 	ctx.sm3_hash((uint32_t*)message, output);
 	for (int i = 0; i < 8; i++)
-		cout << output[i];
+		cout << hex << output[i];
+	cout << endl;
 	*/
 	//naiveBirthdayAttack();
 	/*
-	Message 1: 26373
-	Message 2: 58539
+	Message 1: 30176
+	Message 2: 55493
 	(2^16 = 65536)
 	*/
-	multiThreadRho();
+	//multiThreadRho();
+	/*
+	uint32_t _output[32];
+	lengthExtendAttack(output, (uint32_t*)message, 296, _output);    //extend message to the bottom of message
+	for (int i = 0; i < 8; i++)
+		cout << hex << _output[i];
+	cout << endl;
+	*/
+	MerkleTree(0, 23, output);
+	for (int i = 0; i < 8; i++)
+		cout << hex << output[i];
+	cout << endl;
 	return 0;
 }
