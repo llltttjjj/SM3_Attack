@@ -124,7 +124,7 @@ void naiveBirthdayAttack() {
 		for (uint32_t i = 0; i < t; i++)
 			if (buffer[i] == buffer[t]) {
 				cout << "Find a collision!" << endl
-					<< "Message 1: " << i << endl
+					<< "Message 1: " << hex << i << endl
 					<< "Message 2: " << t << endl;
 				return;
 			}
