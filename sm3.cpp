@@ -155,7 +155,7 @@ void* rhoCollisionAttack(void* n) {
 		mem[num][0] = x;
 		for (i[num] = 1; i[num] < SIZE; i[num]++) {
 			ctx.sm3_hash((uint32_t*)&x, output);
-			mem[num][i[num]] = x = output[0] * pow(32) + output[1];     //take 64 bits of digest
+			mem[num][i[num]] = x = output[0] * pow(32) + output[1] / pow(24);     //take 64 bits of digest
 			for (int k = 0; k < 16; k++)
 				for (uint32_t j = 1; j < i[k]; j++)
 					if (mem[k][j] == mem[num][i[num]] && mem[k][j - 1] != mem[num][i[num] - 1]) {
@@ -196,12 +196,12 @@ void lengthExtendAttack(const uint32_t* hash, const uint32_t* message, const int
 }
 /* A sample of merkle tree: Assume that every message is 504 bits(63 Bytes for message, 1 Bytes for 0x01 or 0x00) long, num messages in total */
 const int numberOfMessage = 23;
-const uint32_t message[numberOfMessage][16]{};
+uint32_t messageSet[numberOfMessage][16]{};
 void MerkleTree(uint32_t start, uint32_t num, uint32_t* output) {     //https://rfc2cn.com/rfc6962.html
 	
 	if (num == 1) {
 		sm3_context ctx(512);
-		ctx.sm3_hash(message[start], output);
+		ctx.sm3_hash(messageSet[start], output);
 		return;
 	}
 	sm3_context ctx(520);
@@ -212,23 +212,19 @@ void MerkleTree(uint32_t start, uint32_t num, uint32_t* output) {     //https://
 	ctx.sm3_hash((uint32_t*)temp, output);
 	return;
 }
+#include<cstdlib>
 int main() {
 	/* A Simple Test of SM3 */
 	char message[] = "dfsegsfcfdsfvxcsdfd43sefsrt435fdsgds";
 	uint32_t output[8];
-	/*
 	sm3_context ctx(296);
 	ctx.sm3_hash((uint32_t*)message, output);
+	/*
 	for (int i = 0; i < 8; i++)
 		cout << hex << output[i];
 	cout << endl;
 	*/
 	//naiveBirthdayAttack();
-	/*
-	Message 1: 30176
-	Message 2: 55493
-	(2^16 = 65536)
-	*/
 	//multiThreadRho();
 	/*
 	uint32_t _output[32];
@@ -236,10 +232,20 @@ int main() {
 	for (int i = 0; i < 8; i++)
 		cout << hex << _output[i];
 	cout << endl;
+	char _message[] = "dfsegsfcfdsfvxcsdfd43sefsrt435fdsgds\0dfsegsfcfdsfvxcsdfd43sefsrt435fdsgds";
+	sm3_context _ctx(592);
+	ctx.sm3_hash((uint32_t*)_message, output);
+	for (int i = 0; i < 8; i++)
+		cout << hex << _output[i];
+	cout << endl;
 	*/
+	for (int i = 0; i < numberOfMessage; i++)
+		for (int j = 0; j < 16; j++)
+			messageSet[i][j] = char(rand()%128);
 	MerkleTree(0, 23, output);
 	for (int i = 0; i < 8; i++)
 		cout << hex << output[i];
 	cout << endl;
+	
 	return 0;
 }
