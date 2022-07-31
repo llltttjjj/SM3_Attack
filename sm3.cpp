@@ -155,7 +155,7 @@ void* rhoCollisionAttack(void* n) {
 		mem[num][0] = x;
 		for (i[num] = 1; i[num] < SIZE; i[num]++) {
 			ctx.sm3_hash((uint32_t*)&x, output);
-			mem[num][i[num]] = x = output[0] * pow(32) + output[1] / pow(24);     //take 64 bits of digest
+			mem[num][i[num]] = x = output[0] * pow(32) + output[1] / pow(24);     //take 48 bits of digest
 			for (int k = 0; k < 16; k++)
 				for (uint32_t j = 1; j < i[k]; j++)
 					if (mem[k][j] == mem[num][i[num]] && mem[k][j - 1] != mem[num][i[num] - 1]) {
