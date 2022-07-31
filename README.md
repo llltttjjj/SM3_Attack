@@ -27,10 +27,6 @@ The size of digest can be extend to 64-bits, which will take much longer time to
 
 (The hash result of 23 random array of char)
 
-Have trouble dealing with real network communication, several other projects are unfinished.
-
-To run above codes, you'll need WinNTL-11_5_1 functions.
-
 Be aware of "//" sign to run all functions.
 
 All codes are wrtien by myself.
