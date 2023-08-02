@@ -29,4 +29,4 @@ The size of digest can be extend to 64-bits, which will take much longer time to
 
 Be aware of "//" sign to run all functions.
 
-All codes are wrtien by myself.
+All codes are writen by myself.
